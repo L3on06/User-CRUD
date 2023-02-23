@@ -3,7 +3,8 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 
 const Users = () => {
-    const [users, setUsers] = useState([])
+
+    const [users, setUsers] = useState([]);
 
     useEffect(() => {
         const fetchAllUsers = async () => {
@@ -14,9 +15,19 @@ const Users = () => {
                 console.log(err);
             }
         }
-
+  
         fetchAllUsers();
-}, [])
+    }, [])
+    
+
+    const handleDelete = async (id) => {
+        try {
+            await axios.delete(`http://localhost:8800/users/${id}`);
+            window.location.reload();
+        } catch (err) { 
+            console.log(err);
+        }
+    }
 
 
     return (
@@ -26,10 +37,11 @@ const Users = () => {
                 <div key={user.id}>
                     <h3>{user.username}</h3>
                     <p>{user.email}</p>
+                    <button onClick={()=>handleDelete(user.id)}>Remove user</button>
+                    <button><Link to={`/update/${user.id}`} >Update user</Link></button>
                 </div>
             ))}
-
-            <button><Link to="/add">Add new user</Link></button>
+                <button><Link to="/add">Add new user</Link></button>
         </div>
     )
 };

@@ -1,37 +1,43 @@
+import axios from "axios";
 import React from "react";
 import { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 
 const Add = () => {
     
-    const [users, setUsers] = useState({
+    const [user, setUser] = useState({
         username: "",
         email:"",
-        passsword:"",
+        password:"",
     });
 
-    const navigate = useNavigate()
+    const [error, setError] = useState(false);
+
+    const navigate = useNavigate();
+
+    const handleChange = (e) => {
+        setUser((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    };
 
 
     const handleClick = async (e) => {
-        e.preventDefault()
+        e.preventDefault();
+
         try {
-            await axios.post("http://localhost:8800/users", users)
-            navigate("/");
+            await axios.post("http://localhost:8800/users", user)
+            navigate("/users");
         } catch (err) {
             console.log(err);
+            setError(true);
         }
-    }
+    };
 
-    const handleChange = (e) => { 
-        setUsers(prev=>({...prev, [e.target.name]: e.target.value}))
-    }
-
+  
     return (
         <div>
             <h1>Add new User</h1>
+            {error && "Something went wrong!"}
             <input type="text" placeholder="Username" onChange={handleChange} name="username" />
             <input type="email" placeholder="Email" onChange={handleChange}  name="email"/>
             <input type="password" placeholder="Password" onChange={handleChange} name="password" />
