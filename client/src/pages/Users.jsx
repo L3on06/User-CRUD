@@ -1,49 +1,32 @@
-import React, { useState, useEffect  } from "react";
-import axios from "axios";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import AdminHome from "./AdminHome";
+import UserHome from "./UserHome";
+import axios from 'axios';
 
-const Users = () => {
+export default function UserDetails() {
+  const [userData, setUserData] = useState("");
+  const [admin, setAdmin] = useState(false);
 
-    const [users, setUsers] = useState([]);
-
-    useEffect(() => {
-        const fetchAllUsers = async () => {
-            try {
-                const res = await axios.get('http://localhost:8800/users')
-                setUsers(res.data)
-            } catch (err) { 
-                console.log(err);
-            }
+  useEffect(() => {
+    axios.post('http://localhost:8800/user', {
+      token: window.localStorage.getItem('token')
+    })
+      .then((response) => {
+        if (response.data.data.userType === 'Admin') {
+          setAdmin(true);
         }
-  
-        fetchAllUsers();
-    }, [])
-    
+        setUserData(response.data.data);
 
-    const handleDelete = async (id) => {
-        try {
-            await axios.delete(`http://localhost:8800/users/${id}`);
-            window.location.reload();
-        } catch (err) { 
-            console.log(err);
+        if (response.data.data === 'token expired') {
+          alert('Token expired login again');
+          window.localStorage.clear();
+          window.location.href = './';
         }
-    }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, []);
 
-
-    return (
-        <div>
-            <h1>All users</h1>
-            {users && users.map(user => (
-                <div key={user.id}>
-                    <h3>{user.username}</h3>
-                    <p>{user.email}</p>
-                    <button onClick={()=>handleDelete(user.id)}>Remove user</button>
-                    <button><Link to={`/update/${user.id}`} >Update user</Link></button>
-                </div>
-            ))}
-                <button><Link to="/add">Add new user</Link></button>
-        </div>
-    )
-};
-
-export default Users;
+  return admin ? <AdminHome userData={userData} /> : <UserHome userData={userData} />;
+}

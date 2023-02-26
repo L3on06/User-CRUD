@@ -1,92 +1,165 @@
 import express from 'express';
-import mysql from 'mysql';
 import cors from 'cors';
+import mongoose from 'mongoose';
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+const JWT_SECRET = "!,ooposccbmt3e!@as90@!f3fy558990./2?2@#$kj3ebipqsccsccs%^&cdc67rg*(67k)rh{}asasa[aa]"
 
+mongoose.set('strictQuery', false);
 const app = express();
-
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'crud-user',
-});
-
-db.connect(function (error) {
-    if (error) {
-        console.log("Error connecting to DATABASE");
-    } else {
-        console.log("Successfully connected to DATABASE");
-    }
-});
-
 app.use(express.json());
 app.use(cors());
 
 
-app.get("/", (req, res) => { 
-    res.json("hello User")
-})
+// Database //
+const mongoURL = "mongodb+srv://User-CRUD:User-CRUD@cluster0.vukjrli.mongodb.net/?retryWrites=true&w=majority";
+
+mongoose.connect(mongoURL, {
+    useNewUrlParser: true,
+}).then(() => {
+    console.log("Connected to Database")
+}).catch((e) => console.log(e));
 
 
-// View all users //
-app.get("/users", (req, res) => {
-    const q = "SELECT * FROM users";
-    db.query(q, function (error, data) {
-        if (error) {
-            console.log("Error Connection To View Users");
-        } else {
-              return res.json(data);
+// Register User
+import "./UserDetails.js";
+const User = mongoose.model("UserDetails");
+
+app.post("/register", async (req, res) => {
+    const { username, email, password, userType } = req.body;
+
+    const encryptedPassword = await bcrypt.hash(password, 10);
+    try {
+        const oldUser = await User.findOne({ email });
+
+        if (oldUser) {
+            return res.json({ error: "User Exists" });
         }
-    });
+        await User.create({
+            username,
+            email,
+            password: encryptedPassword,
+            userType,
+        });
+        res.send({ status: "Created successfully" });
+    } catch (error) {
+        res.send({ status: "Somthing went wrong!" });
+    }
 });
 
-// Add users //
-app.post("/users", (req, res) => {
-    const q = "INSERT INTO users SET ?"
-    const values = {
-        username: req.body.username,
-        email: req.body.email,
-        password: req.body.password
-    };
+// Login User
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
 
-    db.query(q, values, (error) => {
-        if (error) {
-            res.send({ status: false, message: "User created Failed" });
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        return res.json({ error: "User Not found" });
+    }
+    if (await bcrypt.compare(password, user.password)) {
+        const token = jwt.sign({ email: user.email }, JWT_SECRET, {
+            // expiresIn: 10,
+        });
+
+        if (res.status(201)) {
+            return res.json({ status: "ok", data: token });
         } else {
-            res.send({ status: false, message: "User created Successfully" });
+            return res.json({ error: "Error" });
         }
-    });
+    }
+    res.json({ status: "error", error: "Invaliv Password" });
 });
 
-// Delete User //
-app.delete("/users/:id", (req, res) => {
-    const userId = req.params.id
-    const q = "DELETE FROM users WHERE id = ?"
+// Fetching user data
+app.get('/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id)
+        res.json(user);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'An error occurred while fetching user data.' });
+    }
+});
 
-    db.query(q, [userId], (err, data) => {
-        if (err) return res.json(err)
-        return res.json("User deletet succesfully");
-    })
+
+// View user data 
+app.post('/user', async (req, res) => {
+    const { token } = req.body;
+    try {
+        const user = jwt.verify(token, JWT_SECRET, (err, res) => {
+            if (err) {
+                return "token expired"
+            }
+            return res;
+        });
+        console.log(user);
+        if (user === "token expired") {
+            return res.send({ status: "error", data: "token expired" });
+        }
+
+        const userEmail = user.email;
+        User.findOne({ email: userEmail })
+            .then((data) => {
+                res.send({ status: "ok", data: data });
+            }).catch((error) => {
+                res.send({ status: "error", data: error });
+            });
+    } catch (error) {
+
+    }
 })
 
-// Update User // 
-app.put("/users/:id", (req, res) => {
-    const userId = req.params.id;
-    const q = "UPDATE users SET `username` = ?, `email` = ?, `password` = ? WHERE id = ?";
 
-    const values = [
-        req.body.username,
-        req.body.email,
-        req.body.password
-    ];
+// View all users
+app.get("/getAllUser", async (req, res) => {
+    try {
+        const allUser = await User.find({});
+        res.send({ status: "okay", data: allUser });
+        console.log(allUser);
+    } catch (error) {
+        console.log(error)
+    }
+})
 
-    db.query(q, [...values,userId], (err, data) => {
-        if (err) return res.send(err);
-        return res.json(data);
-    })
+// Delete users
+app.post("/deleteUser", async (req, res) => {
+    const { userId } = req.body;
+    try {
+        User.deleteOne({ _id: userId }, function (err, res) {
+            console.log(err)
+        });
+        res.send({ status: "ok", data: "Deleted" })
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 
+// Update user details
+app.put('/update/:id', async (req, res) => {
+    const { username, email, password } = req.body;
+
+    const encryptedPassword = await bcrypt.hash(password, 10);
+
+    const token = jwt.sign({ email: email }, JWT_SECRET, {
+        // expiresIn: 10,
+    });
+
+    User.findById(req.params.id)
+        .then(user => {
+            user.username = username;
+            user.email = email;
+            user.password = encryptedPassword;
+
+            user.save()
+                .then(() => res.json(token))
+                .catch(err => res.status(400).json('Error: ' + err));
+        })
+        .catch(err => res.status(400).json('Error: ' + err));
+});
+
+
+// Port running
 app.listen(8800, () => {
-    console.log("Connected to backend.");
-  });
+    console.log("Server Started");
+});
